@@ -1,1 +1,271 @@
+
+testdata: https://sap-my.sharepoint.com/:u:/p/hongguen_park/ES2g_uGjGqBIljaBNY6UZvkBOwFqe-y42atvpiodB1snTg?e=tXcdCa
+
+DAT260.tar.gz : 런던지역의 Street network 데이터와 point of interest(POI) 데이터 
+
 1
+CREATE COLUMN TABLE "LONDON_EDGES" LIKE "HC_DEMO"."LONDON_EDGES" WITH DATA;
+CREATE COLUMN TABLE "LONDON_TUBE_CONNECTIONS" LIKE "HC_DEMO"."LONDON_TUBE_CONNECTIONS" WITH DATA;
+CREATE COLUMN TABLE "LONDON_TUBE_STATIONS" LIKE "HC_DEMO"."LONDON_TUBE_STATIONS" WITH DATA;
+CREATE COLUMN TABLE "LONDON_VERTICES" LIKE "HC_DEMO"."LONDON_VERTICES" WITH DATA;
+
+2
+SELECT "geometry_GEO".ST_X() AS  "위도", "geometry_GEO".ST_Y() AS "경도" FROM LONDON_VERTICES;
+
+3
+ALTER TABLE LONDON_POI ADD (SHAPE ST_Geometry(32630));
+ALTER TABLE LONDON_EDGES ADD (SHAPE ST_Geometry(32630));
+ALTER TABLE LONDON_VERTICES ADD (SHAPE ST_Geometry(32630));
+ALTER TABLE LONDON_TUBE_CONNECTIONS ADD (SHAPE ST_Geometry(32630));
+ALTER TABLE LONDON_TUBE_STATIONS ADD (SHAPE ST_Geometry(32630));
+
+UPDATE LONDON_POI SET SHAPE = "geometry_GEO".ST_Transform(32630); 
+UPDATE LONDON_EDGES SET SHAPE = "geometry_GEO".ST_Transform(32630); 
+UPDATE LONDON_VERTICES SET SHAPE = "geometry_GEO".ST_Transform(32630); 
+UPDATE LONDON_TUBE_CONNECTIONS SET SHAPE = SHAPE_4326.ST_Transform(32630); 
+UPDATE LONDON_TUBE_STATIONS SET SHAPE = SHAPE_4326.ST_Transform(32630);
+
+
+
+SELECT ST_GeomFromText('POINT(-0.026859 51.505748)', 4326) FROM DUMMY;
+
+ SRS 32630 으로 POINT 값 변경:
+SELECT ST_GeomFromText('POINT(-0.026859 51.505748)', 4326) FROM DUMMY;
+SELECT ST_GeomFromText('POINT(-0.026859 51.505748)', 4326).ST_Transform(32630).ST_AsWKT() FROM DUMMY;
+SELECT ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630) FROM DUMMY;
+
+
+
+SELECT * FROM LONDON_POI lp WHERE LOWER("name") LIKE '%blues kitchen%' AND "amenity" = 'bar’;
+SELECT "osmid", SHAPE.ST_Transform(4326).ST_AsWKT() FROM LONDON_POI lp WHERE LOWER("name") LIKE '%blues kitchen%' AND "amenity" = 'bar';
+SELECT * FROM LONDON_POI lp WHERE "osmid" = 6274057185;
+
+
+
+SELECT SHAPE.ST_Distance( ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630) ) 
+FROM LONDON_POI lp 
+WHERE "osmid" = 6274057185;
+
+
+
+SELECT 
+ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630) AS START_PT, 
+SHAPE AS TARGET_PT 
+FROM LONDON_POI lp 
+WHERE "osmid" = 6274057185;
+
+
+SELECT 
+ST_MakeLine(START_PT, TARGET_PT) AS CONN_LINE 
+FROM ( 
+-- subquery showing start and end points 
+SELECT 
+ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630) AS START_PT, 
+SHAPE AS TARGET_PT 
+FROM LONDON_POI lp 
+WHERE "osmid" = 6274057185 
+);
+
+
+SELECT 
+CONN_LINE.ST_LineInterpolatePoint(0.5) AS CENTER_PT 
+FROM 
+( 
+-- subquery showing line between points
+SELECT 
+ST_MakeLine(START_PT, TARGET_PT) AS CONN_LINE 
+FROM ( 
+-- subquery showing start and end points 
+SELECT 
+ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630) AS START_PT, 
+SHAPE AS TARGET_PT 
+FROM LONDON_POI lp 
+WHERE "osmid" = 6274057185 
+)
+);
+
+
+SELECT CENTER_PT.ST_Buffer(4835) AS AREA 
+FROM 
+( 
+-- subquery showing center point
+SELECT 
+CONN_LINE.ST_LineInterpolatePoint(0.5) AS CENTER_PT 
+FROM 
+( 
+-- subquery showing line between points
+SELECT 
+ST_MakeLine(START_PT, TARGET_PT) AS CONN_LINE 
+FROM ( 
+-- subquery showing start and end points 
+SELECT 
+ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630) AS START_PT, 
+SHAPE AS TARGET_PT 
+FROM LONDON_POI lp 
+WHERE "osmid" = 6274057185 
+)
+)
+);
+
+
+SELECT CENTER_PT.ST_Buffer(4835) AS AREA 
+FROM 
+( 
+-- subquery showing center point
+SELECT 
+CONN_LINE.ST_LineInterpolatePoint(0.5) AS CENTER_PT 
+FROM 
+( 
+-- subquery showing line between points
+SELECT 
+ST_MakeLine(START_PT, TARGET_PT) AS CONN_LINE 
+FROM ( 
+-- subquery showing start and end points 
+SELECT 
+ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630) AS START_PT, 
+SHAPE AS TARGET_PT 
+FROM LONDON_POI lp 
+WHERE "osmid" = 6274057185 
+)
+)
+);
+
+
+
+SELECT
+ST_MakeLine(
+ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630),
+SHAPE
+)
+.ST_LineInterpolatePoint(0.5)
+.ST_Buffer(4835) AS AREA
+FROM LONDON_POI
+WHERE "osmid" = 6274057185;
+
+
+ALTER TABLE LONDON_VERTICES ADD (IN_SCOPE INTEGER);
+
+
+
+MERGE INTO LONDON_VERTICES lv USING 
+( -- previous statement being -- 
+SELECT ST_MakeLine( ST_GeomFromText('POINT (706327.107445 5710259.94449)', 32630), SHAPE ) .ST_LineInterpolatePoint(0.5) .ST_Buffer(5000) AS AREA 
+FROM LONDON_POI WHERE "osmid" = 6274057185 -- previous statement end -- 
+) circle 
+ON 1=1 WHEN MATCHED THEN UPDATE SET lv.IN_SCOPE = CIRCLE.AREA.ST_Intersects(SHAPE);
+
+SELECT SHAPE FROM LONDON_VERTICES WHERE IN_SCOPE = 1;
+SELECT "osmid",SHAPE.st_transform(4326).ST_AsWKT() location FROM LONDON_VERTICES WHERE IN_SCOPE = 1;
+
+
+
+SELECT le.* 
+FROM LONDON_EDGES le 
+JOIN LONDON_VERTICES u ON le.SOURCE = u."osmid"
+JOIN LONDON_VERTICES v ON le.TARGET = v."osmid" 
+WHERE u.IN_SCOPE = 1 AND v.IN_SCOPE = 1 AND le."highway" = 'cycleway';
+
+
+SELECT ST_UnionAggr(le.SHAPE).ST_AsSVG(Attribute=>'stroke="red" stroke-width="0.1%"') 
+FROM LONDON_EDGES le
+JOIN LONDON_VERTICES u ON le.SOURCE = u."osmid"
+JOIN LONDON_VERTICES v ON le.TARGET = v."osmid" 
+WHERE u.IN_SCOPE = 1 AND v.IN_SCOPE = 1 AND le."highway" = 'cycleway';
+
+
+SELECT * 
+FROM LONDON_POI
+WHERE "amenity" = 'bicycle_repair_station';
+
+
+SELECT 
+"osmid",
+SHAPE,
+ST_VoronoiCell(SHAPE, 10.0) OVER () AS CATCHMENT_AREA
+FROM LONDON_POI
+WHERE "amenity" LIKE 'bicycle_repair_station';
+
+
+ALTER TABLE LONDON_VERTICES ADD (VORONOI_CELL ST_Geometry(32630));
+
+MERGE INTO LONDON_VERTICES 
+USING 
+(
+SELECT "osmid", ST_VoronoiCell(shape, 10.0) OVER () AS CELL
+FROM LONDON_VERTICES
+) v ON LONDON_VERTICES."osmid" = v."osmid"
+WHEN MATCHED THEN UPDATE SET LONDON_VERTICES.VORONOI_CELL = v.CELL;
+
+
+ALTER TABLE LONDON_POI ADD (SHAPE_CENTROID ST_GEOMETRY(32630));
+
+UPDATE LONDON_POI
+SET SHAPE_CENTROID =
+CASE
+WHEN SHAPE.ST_GeometryType() = ‘ST_Point’
+THEN SHAPE
+ELSE SHAPE.ST_Centroid()
+END;
+
+
+ALTER TABLE LONDON_POI ADD (VERTEX_OSMID BIGINT);
+
+MERGE INTO LONDON_POI lp
+USING LONDON_VERTICES lv
+ON lv.VORONOI_CELL.ST_Intersects(lp.SHAPE_CENTROID) = 1
+WHEN MATCHED THEN UPDATE SET lp.VERTEX_OSMID = lv."osmid";
+
+
+-- add PK
+ALTER TABLE "LONDON_EDGES" ADD PRIMARY KEY("ID");
+ALTER TABLE "LONDON_VERTICES" ADD PRIMARY KEY("osmid");
+
+--add foreign keys on the SOURCE and TARGET column of the table LONDON_EDGES 
+ALTER TABLE "LONDON_EDGES" ALTER("SOURCE" BIGINT NOT NULL REFERENCES "LONDON_VERTICES" ("osmid") ON UPDATE CASCADE ON DELETE CASCADE);
+
+ALTER TABLE "LONDON_EDGES" ALTER("TARGET" BIGINT NOT NULL REFERENCES "LONDON_VERTICES" ("osmid") ON UPDATE CASCADE ON DELETE CASCADE);
+
+
+CREATE GRAPH WORKSPACE "LONDON_GRAPH_AC05863U01"
+EDGE TABLE "LONDON_EDGES"
+SOURCE COLUMN "SOURCE"
+TARGET COLUMN "TARGET"
+KEY COLUMN "ID"
+VERTEX TABLE "LONDON_VERTICES"
+KEY COLUMN "osmid";
+
+
+CREATE TYPE "TT_SPOO_EDGES" AS TABLE (
+"ID" NVARCHAR(5000), "SOURCE" BIGINT, "TARGET" BIGINT, "EDGE_ORDER" BIGINT, "length" DOUBLE);
+
+
+CREATE PROCEDURE "GS_SPOO"(
+IN i_startVertex BIGINT, -- INPUT: the ID of the start vertex
+IN i_endVertex BIGINT, -- INPUT: the ID of the end vertex
+IN i_direction VARCHAR(10), -- INPUT: the direction of the edge traversal: OUTGOING (default), INCOMING, ANY
+OUT o__length BIGINT, -- OUTPUT: the hop distance between start and end
+OUT o_edgpathes "TT_SPOO_EDGES" -- OUTPUT: a table containing the edges that make up a shortest path between start and end
+)
+LANGUAGE GRAPH READS SQL DATA AS BEGIN
+-- Create an instance of the graph, referring to the graph workspace object
+GRAPH g_all = Graph("shema_name", "LONDON_GRAPH_Your_Username");
+-- Using the IN_SCOPE attribute created in "Exercise 3 Identify Relevant Area for Transportation Network" to narrow down the search scope
+GRAPH g = SubGraph(:g_all, v IN Vertices(:g_all) WHERE :v."IN_SCOPE" == 1);
+-- Create an instance of the start/end vertex
+VERTEX v_start = Vertex(:g, :i_startVertex);
+VERTEX v_end = Vertex(:g, :i_endVertex);
+-- Runnning shortest path one-to-one based hop distance, i.e. the minimum number of edges between start and end
+WeightedPath<BIGINT> p = Shortest_Path(:g, :v_start, :v_end, :i_direction);
+o_path_length = LENGTH(:p);
+o_edges = SELECT :e."ID", :e."SOURCE", :e."TARGET", :EDGE_ORDER, :e."length" FOREACH e IN Edges(:p) WITH ORDINALITY AS EDGE_ORDER;
+END;
+
+
+-- Look up VERTEX_OSMID of POI Blues kitchen
+SELECT VERTEX_OSMID FROM "LONDON_POI" WHERE "name" = 'Blues Kitchen' AND "osmid" = 6274057185;
+
+CALL "GS_SPOO"(i_startVertex => 1433737988, i_endVertex => 1794145673, i_direction => 'ANY', o_path_length => ?, o_edges => ?);
+-- or in short
+CALL "GS_SPOO"(1433737988, 1794145673, 'ANY', ?, ?);
+
+
