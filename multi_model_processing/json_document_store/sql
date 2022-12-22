@@ -1,0 +1,161 @@
+--SQL Console1
+--Customer Column 테이블 생성
+Create Column Table Customer (
+	ID int PRIMARY KEY NOT NULL,
+	FirstName nvarchar(200) NOT NULL,
+	LastName nvarchar(200) NOT NULL,
+	Age int,
+	Address nvarchar(200),
+	Salary int
+);
+
+
+
+--SQL Console2
+--Company Column 테이블 생성
+Create Column Table Company (
+	ID int PRIMARY KEY NOT NULL,
+	Name nvarchar(200) NOT NULL,
+	Address nvarchar(200) NOT NULL,
+	Revenue nvarchar(25),
+	EmployeeNum nvarchar(25)
+);
+
+
+--SQL Console3
+--Orders Collection 생성
+Create Collection Orders;
+
+
+--SQL Console4
+--Customer & Company 데이터 삽입
+Insert into Customer values(392, 'Gildong', 'Hong', 38, 'Seoul', 65000);
+Insert into Customer values(790, 'John', 'Doe', 29, 'Busan', 82000);
+Insert into Customer values(126, 'SH', 'Kim', 45, 'Daegu', 77000);
+Insert into Customer values(521, 'DW', 'Lee', 52, 'Incheon', 90000);
+Insert into Customer values(778, 'GM', 'Park', 30, 'Gwangju', 59000);
+Insert into Customer values(402, 'JH', 'Choi', 24, 'Daejeon', 35000);
+Insert into Customer values(223, 'HS', 'Jeong', 41, 'Ulsan', 49000);
+Insert into Company values(1, 'SAP', 'Walldorf, Germany', 27842000000, 107415);
+Insert into Company values(2, 'Company A', 'Seoul, Republic of Korea', 27842000000, 1520);
+Insert into Company values(3, 'Company B', 'Incheon, Republic of Korea', 3276500000, 2211);
+Insert into Company values(4, 'Company C', 'Busan, Republic of Korea, Germany', 993400000, 580);
+Insert into Company values(5, 'Company D', 'Jeju, Republic of Korea, Germany', 716530000, 427);
+
+--SQL Console5
+--Order 데이터 삽입
+Insert into Orders values({ "OrderNo": 1, "CustomerID": 392, "CompanyID": 1, "OrderDate": '2022-10-10', "ProductName": 'BTP', "Price": 2500, "Qty": 12 });
+Insert into Orders values({ "OrderNo": 2, "CustomerID": 392, "CompanyID": 3, "OrderDate": '2022-10-20', "ProductName": 'Banana', "Price": 100, "Qty": 35 });
+Insert into Orders values({ "OrderNo": 3, "CustomerID": 126, "CompanyID": 5, "OrderDate": '2022-10-25', "ProductName": 'Donut', "Price": 200, "Qty": 21 });
+Insert into Orders values({ "OrderNo": 4, "CustomerID": 521, "CompanyID": 1, "OrderDate": '2022-10-02', "ProductName": 'HANA', "Price": 2500, "Qty": 12 });
+Insert into Orders values({ "OrderNo": 5, "CustomerID": 778, "CompanyID": 1, "OrderDate": '2022-10-08', "ProductName": 'BTP', "Price": 2500, "Qty": 12 });
+Insert into Orders values({ "OrderNo": 6, "CustomerID": 778, "CompanyID": 2, "OrderDate": '2022-10-04', "ProductName": 'Apple', "Price": 150, "Qty": 8 });
+Insert into Orders values({ "OrderNo": 7, "CustomerID": 778, "CompanyID": 4, "OrderDate": '2022-10-18', "ProductName": 'Chocolate', "Price": 100, "Qty": 11 });
+Insert into Orders values({ "OrderNo": 8, "CustomerID": 402, "CompanyID": 1, "OrderDate": '2022-10-12', "ProductName": 'BTP', "Price": 2500, "Qty": 12 });
+Insert into Orders values({ "OrderNo": 9, "CustomerID": 402, "CompanyID": 2, "OrderDate": '2022-10-09', "ProductName": 'Apple', "Price": 150, "Qty": 14 });
+Insert into Orders values({ "OrderNo": 10, "CustomerID": 223, "CompanyID": 5, "OrderDate": '2022-10-13', "ProductName": 'Dairy', "Price": 300, "Qty": 13 });
+
+
+
+--SQL Console6
+--JSON으로 필터링
+Select * from Orders where "Qty" > 20;
+
+
+
+
+--SQL Console7
+--테이블 형식으로 필터링
+Select "OrderNo", "OrderDate" from Orders where "Qty" > 20;
+
+
+
+--SQL Console8
+--Aggregation
+Select "ProductName", COUNT(*) as count
+from Orders
+group by "ProductName";
+
+
+
+
+
+--SQL Console9
+--Index 생성
+CREATE HASH INDEX Orders_Index on Orders("OrderNo");
+
+
+
+--SQL Console10
+--Update
+Update Orders set "Price" = 2400 where "ProductName" = 'BTP';
+
+
+
+
+--SQL Console11
+--Check Update
+With myViewForJoining as (Select "OrderNo", "CustomerID", "CompanyID", "OrderDate", "ProductName","Price", "Qty" from Orders)
+Select * from myViewForJoining order by (TO_BIGINT("OrderNo")) asc;
+
+
+
+
+--SQL Console12
+--JSON Collection와 Column Store Table 결합(Join)으로 Orders에 있는 회사 이름 출력
+With myViewForJoining as (Select "OrderNo", "CustomerID", "CompanyID", "OrderDate", "ProductName","Price", "Qty" from Orders)
+Select Distinct Company.Name from myViewForJoining Join Company on myViewForJoining."CompanyID" = Company."ID"
+Order by Company.Name;
+
+
+
+
+
+
+
+--SQL Console13
+--JSON Collection와 Column Store Table 결합(Join)으로 각 고객의 구매 총 금액 출력
+With myViewForJoining as (Select "OrderNo", "CustomerID", "CompanyID", "OrderDate", "ProductName","Price", "Qty" from Orders)
+Select Customer.FirstName || ' '|| Customer.LastName as "Full Name", 
+SUM((TO_BIGINT(myViewForJoining."Price")) * (TO_BIGINT(myViewForJoining."Qty"))) as "Total Amount Spent" 
+from myViewForJoining Join Customer on myViewForJoining."CustomerID" = Customer."ID" Join Company on myViewForJoining."CompanyID" = Company."ID" 
+group by Customer.FirstName, Customer.LastName Order by Customer.FirstName, Customer.LastName;
+
+--SQL Console14
+--Join with Column Store Table to See Overall picture
+With myViewForJoining as (Select "OrderNo", "CustomerID", "CompanyID", "OrderDate", "ProductName","Price", "Qty" from Orders)
+Select myViewForJoining."OrderNo" as Order_Number, Customer.FirstName, Customer.LastName, Company.Name as Company_Name, 
+myViewForJoining."ProductName" as Ordered_Product, TO_BIGINT(myViewForJoining."Price") * TO_BIGINT(myViewForJoining."Qty") as Total_Price
+from myViewForJoining Join Company on myViewForJoining."CompanyID" = Company."ID" Join Customer on myViewForJoining."CustomerID" = Customer."ID" 
+Order by myViewForJoining."OrderNo" asc;
+
+
+
+--SQL Console15
+--Procedure 생성
+CREATE PROCEDURE JSON_Procedure()
+   LANGUAGE SQLSCRIPT AS
+Begin
+Select "OrderNo", "OrderDate" from Orders where "Qty" > 20;
+END;
+
+CALL JSON_Procedure()
+
+
+--SQL Console16
+--JSON Function that input company name and outputs customer name orderid, order date, order amount
+CREATE FUNCTION JSON_Function (companyname varchar(200))
+ RETURNS TABLE (CompanyName varchar(200), FullName varchar(400), OrderID Int, OrderDate varchar(200), OrderAmount Int)
+    LANGUAGE SQLSCRIPT AS
+BEGIN
+	Return With myViewForJoining as (Select "OrderNo", "CustomerID", "CompanyID", "OrderDate", "ProductName","Price", "Qty" from Orders)
+	Select Company.Name as CompanyName, Customer.FirstName || ' '|| Customer.LastName as FullName, 
+	myViewForJoining."OrderNo" as OrderID, myViewForJoining."OrderDate" as OrderDate, TO_BIGINT(myViewForJoining."Price") * TO_BIGINT(myViewForJoining."Qty") as OrderAmount
+	from myViewForJoining Join Company on myViewForJoining."CompanyID" = Company."ID" Join Customer on myViewForJoining."CustomerID" = Customer."ID" 
+	where Company.Name = companyname;
+END;
+
+SELECT * FROM JSON_Function('SAP');
+SELECT * FROM JSON_Function('Company C');
+
+
